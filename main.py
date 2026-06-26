@@ -70,9 +70,16 @@ async def get_suggestions(request: Request):
         raise HTTPException(status_code=400, detail="Extracted rows array is empty.")
 
     try:
-        profile     = extract_profile(rows)
-        tax         = compare_regimes(profile)
-        gaps        = compute_deduction_gaps(profile)
+        profile = extract_profile(rows)
+
+        # compare_regimes internally calls compute_deduction_gaps for the flip
+        # calculation — we call it once more here for the prompt builder, which
+        # needs the per-section gap figures. The call is cheap (no I/O after
+        # the first load) and the lru_cache on load_tax_rules prevents any
+        # repeated file reads.
+        tax  = compare_regimes(profile)
+        gaps = compute_deduction_gaps(profile)
+
         sys_prompt  = load_system_prompt()
         user_prompt = build_prompt(
             profile_text=json.dumps(profile, indent=2),
